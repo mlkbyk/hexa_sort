@@ -1,0 +1,2869 @@
+#include <raylib.h>
+#include <math.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <raymath.h>
+#define RLIGHTS_IMPLEMENTATION
+#include <rlights.h>
+#include <time.h>
+#define PI 3.14159265358979323846
+#define TABLE1_SIZE 19
+#define TABLE2_SIZE 25
+#define TABLE3_SIZE 35
+#define DISTANCE 2 * (0.05) * ((95 + 10 / sqrt(3)) * sqrt(3) / 2)
+#define NUM_OF_COLORS 8 // 1. bölüm için toplam renk sasyısı
+
+
+Vector2 DrawCenteredTextEx(Font font, const char* text, Vector2 position, float fontSize, float spacing, Color tint);
+void DrawScaledTextEx(Font font, const char* text, Vector2 ratios, float fontSize, float spacing, Color tint);
+Vector2 FindCornerForCenteredTextEx(Font font, const char* text, Vector2 position, float fontSize, float spacing);
+Vector2 FindCornerForCenteredTextScaledEx(Font font, const char* text, Vector2 ratios, float fontSize, float spacing);
+Vector2 DrawScaledCenteredTextEx(Font font, const char* text, Vector2 ratios, float fontSize, float spacing, Color tint);
+float ReturnAppopriateScale();
+void FullscreenToggle();
+void ExecuteMenu(int* p_start_button_state, int* p_options_button_state, int* p_play_button_state, int* p_exit_button_state);
+void ExecuteOptions(int* p_options_button_state);
+void ExecuteEscOptions();
+void ShowHowToPlayScreen(int* p_options_button_state);////////////BBBBBBB
+Font EuclidFamily(int IsTitle);
+Font EuclidPopupFamily();
+void DrawCenteredPopupButtonWithScale(Font font, Font popupfont, int* p_button_state, const char* text, Vector2 ratios, float fontSize, float popedfontSize, float spacing, Color tint, Color poptint, int setstate);
+void InitCamera(Camera* camera, Vector3 Position, Vector3 Target, Vector3 Up, float Fovy, int Projection);
+void InitFonts();
+void InitModels();
+void InitShadersLightMusicAndBackground();
+void UnloadFonts();
+void UnloadModels();
+void UnloadShadersMusicAndBackground();
+void MyToggleFullscreen(Font font, Font popupfont, const char* text, Vector2 ratios, float fontSize, float popedfontSize, float spacing, Color tint, Color poptint);
+void MyToggleMusic(Font font, Font popupfont, const char* text, Vector2 ratios, float fontSize, float popedfontSize, float spacing, Color tint, Color poptint);
+void ToggleMusic();
+Font EuclidOptionsFamily();
+void RotateCamera(float* argument, float* modulus1, float* height, float* modulus2, Light* MyLight, Shader* MyShader);
+void LoopMusic();
+int RotateStack(int* selected_stack_index, int* slot_state_1, int* slot_state_2, int* slot_state_3);
+int RotateSlot(float distance, float diameter, Vector3* location, bool up_selected, int level, Vector3* Table1, Vector3* Table2, Vector3* Table3, float argument);
+int GetRandomNumber5To15();
+void DrawTable(int level, float distance, float diameter);
+
+typedef struct EuclidFamily {
+
+    Font EuclidTitleFullscreen;
+    Font EuclidTitleWindowed;
+    Font EuclidFullscreen;
+    Font EuclidWindowed;
+
+}stEuclidFamily;
+
+typedef struct EuclidPopupFamily {
+
+    Font EuclidPopupFullscreen;
+    Font EuclidPopupWindowed;
+
+}stEuclidPopupFamily;
+
+typedef struct EuclidOptionsFamily {
+
+    Font EuclidOptionsFullscreen;
+    Font EuclidOptionsWindowed;
+
+}stEuclidOptionsFamily;
+
+stEuclidFamily MyEuclid;
+stEuclidPopupFamily MyPopup;
+stEuclidOptionsFamily MyOptions;
+
+Camera MyCamera;
+
+Model GreenHexagon;
+Model YellowHexagon;
+Model RedHexagon;
+Model BlueHexagon;
+Model TurquoiseHexagon;
+Model WhiteHexagon;
+Model GrayHexagon;
+Model PurpleHexagon;
+Model Gray2Hexagon;
+Model Table1;
+Model Table2;
+Model Table3;
+
+Shader myshader;
+Light mylight;
+Sound myMusic;
+Texture2D Background;
+
+int music_flag = 1;
+int win_flag = 0;
+int options_button_state = 0;
+int start_button_state = 0;
+int play_button_state = 0;
+int exit_button_state = 0;
+int esc_options_button_state = 0;
+int selected_stack_index = 0;
+bool stack_selected = false;
+bool enter_selected = false;
+bool up_selected = false;
+
+
+int level_score1 = 150;
+int level_score2 = 300;
+int level_score3 = 400;
+int one_hexa_score = 5;
+int game_running = 1;
+int contineu_flag = 1;
+
+typedef struct HexagonStackMember {
+
+    struct HexagonStackMember* previous;
+    struct HexagonStackMember* next;
+
+    Model color;
+    Color real_color;
+
+}HexagonStackMember;
+
+typedef struct PermanantHexagonStackMember {
+
+    struct PermanantHexagonStackMember* previous;
+    struct PermanantHexagonStackMember* next;
+
+    Model color;
+    Vector3 location;
+    Color real_color;
+
+}PermanantHexagonStackMember;
+
+void CreateStack1(HexagonStackMember** p_first, int limit);
+void CreateStack2(HexagonStackMember** p_first, int limit);
+void CreateStack3(HexagonStackMember** p_first, int limit);
+void DrawStack(HexagonStackMember** p_first, float pos_x, float pos_z, float stabilizer);
+void DrawSelectedStack(HexagonStackMember** p_first, float pos_x, float pos_z, float stabilizer);
+void CopySlotStackToPermanantStack(HexagonStackMember* p_first, PermanantHexagonStackMember** p_perma_first);
+void FreeServerList(PermanantHexagonStackMember** p_perma_first);
+void LockInPositionForPermaStack(PermanantHexagonStackMember** p_perma_first);
+void DrawPermaStack(PermanantHexagonStackMember** p_perma_first);
+void DrawAllPermaStacksTable1(int TableNo);
+void DrawAllPermaStacksTable2(int TableNo);
+void DrawAllPermaStacksTable3(int TableNo);
+int IsTableFull(int level, PermanantHexagonStackMember** Table1, PermanantHexagonStackMember** Table2, PermanantHexagonStackMember** Table3);
+void TraverseTable1();
+void TraverseTable2();
+void TraverseTable3();
+int CheckAdjacentStacksTopColor(PermanantHexagonStackMember* first1, PermanantHexagonStackMember* first2);
+void MoveHexagonsFromOneStackToAnother(PermanantHexagonStackMember** p_first1, PermanantHexagonStackMember** p_first2);
+void CheckHexagonsToPop1(int* score);
+void CheckHexagonsToPop2(int* score);
+void CheckHexagonsToPop3(int* score);
+void ScoreLevel(PermanantHexagonStackMember** p_first1, PermanantHexagonStackMember** p_first2, PermanantHexagonStackMember** p_first3, int* level, int is_table_full, int* game_running, int* slot_state_1, int* slot_state_2, int* slot_state_3, int* score);
+
+PermanantHexagonStackMember* Table1Slots[TABLE1_SIZE] = { NULL };
+PermanantHexagonStackMember* Table2Slots[TABLE2_SIZE] = { NULL };
+PermanantHexagonStackMember* Table3Slots[TABLE3_SIZE] = { NULL };
+
+int Table1Adj[TABLE1_SIZE][TABLE1_SIZE] = {
+
+    0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,
+    1,0,1,0,0,0,1,1,1,1,0,0,0,0,0,0,0,0,0,
+    1,1,0,1,0,0,0,0,0,1,1,1,0,0,0,0,0,0,0,
+    1,0,1,0,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,
+    1,0,0,1,0,1,0,0,0,0,0,0,0,1,1,1,0,0,0,
+    1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,1,1,1,0,
+    1,1,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1,1,
+    0,1,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,1,
+    0,1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,0,
+    0,1,1,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,0,
+    0,0,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,0,
+    0,0,1,1,0,0,0,0,0,0,1,0,1,0,0,0,0,0,0,
+    0,0,0,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,0,
+    0,0,0,1,1,0,0,0,0,0,0,0,1,0,1,0,0,0,0,
+    0,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1,0,0,0,
+    0,0,0,0,1,1,0,0,0,0,0,0,0,0,1,0,1,0,0,
+    0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,1,0,1,0,
+    0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,1,0,1,
+    0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,1,0
+
+};
+
+int Table2Adj[TABLE2_SIZE][TABLE2_SIZE] = {
+    0,	1,	1,	1,	1,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    1,	0,	1,	0,	0,	0,	1,	1,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    1,	1,	0,	1,	0,	0,	0,	0,	0,	1,	1,	0,	0,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    1,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,
+    1,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	1,	0,	0,	0,	0,	0,	0,
+    1,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	1,	0,	0,	0,	0,
+    1,	1,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	0,	0,	0,
+    0,	1,	0,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	0,	0,
+    0,	1,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    0,	1,	1,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    0,	0,	1,	0,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	1,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	0,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    0,	0,	1,	1,	0,	0,	0,	0,	0,	0,	1,	1,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,
+    0,	0,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,
+    0,	0,	0,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,	0,
+    0,	0,	0,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,	0,
+    0,	0,	0,	0,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,	0,	0,	0,
+    0,	0,	0,	0,	0,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,	1,	0,
+    0,	0,	0,	0,	0,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	1,	1,	1,	0,
+    0,	0,	0,	0,	0,	0,	1,	1,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	0,	1,	0,	0,
+    0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	0,	1,	1,
+    0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	0,	1,	0,	1,
+    0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	1,	1,	0
+
+};
+
+int Table3Adj[TABLE3_SIZE][TABLE3_SIZE] = {
+    0	,	1	,	0	,	0	,	0	,	1	,	1	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    1	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    1	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    1	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    1	,	1	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	1	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	0	,	1,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	1	,	1,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	0	,	0,
+    0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	0	,	1	,	1	,	0	,	0
+
+};
+
+int main() {
+
+    int temporary_selection = 0;
+    int selected = 0;
+    int requested = 0;
+    int copied = 0;
+    int fullness = 0;
+    int slot_state_1 = 1;
+    int slot_state_2 = 1;
+    int slot_state_3 = 1;
+    int real_location = 0;
+    int capture_location = 0;
+    int score = 0;
+    int is_table_full = 0;
+    int will_reset = 0;
+    PermanantHexagonStackMember* Server = NULL;
+
+    srand(time(NULL));
+
+    SetConfigFlags(FLAG_MSAA_4X_HINT);
+    SetTargetFPS(120);
+
+    InitWindow(960, 540, "Hexa Sort");
+    InitAudioDevice();
+    InitFonts();
+    InitModels();
+    InitShadersLightMusicAndBackground();
+    InitCamera(&MyCamera, (Vector3) { 0.0f, 50.0f, -50.0f }, (Vector3) { 0.0f, 0.0f, -1.5 * DISTANCE }, (Vector3) { 0.0f, 1.0f, 0.0f }, 50.0f, CAMERA_PERSPECTIVE);
+    PlaySound(myMusic);
+
+    float distance = 2 * (0.05) * ((95 + 10 / sqrt(3)) * sqrt(3) / 2);
+    float diameter = 2 * (0.05) * (95 + 10 / sqrt(3));
+    float argument = PI / 2;
+    float modulus1 = 81;
+    float modulus2 = 2.5 * distance;
+    float height = 61;
+    int level = 1;
+    PermanantHexagonStackMember** CurrentTable = NULL;
+
+
+    float turning_radius = sqrt((1.5 * 1.5 * diameter * diameter) + (5.75 * 5.75 * distance * distance));
+    float slot1_x = turning_radius * cos(atan((1.5 * diameter) / (5.75 * distance)) + argument);
+    float slot1_z = -turning_radius * sin(atan((1.5 * diameter) / (5.75 * distance)) + argument);
+    float slot2_x = 5.75 * distance * cos(argument);
+    float slot2_z = -5.75 * distance * sin(argument);
+    float slot3_x = turning_radius * cos(-atan((1.5 * diameter) / (5.75 * distance)) + argument);
+    float slot3_z = -turning_radius * sin(-atan((1.5 * diameter) / (5.75 * distance)) + argument);
+    float stabilizer_argument = (argument * 180 / PI) + 30;
+
+
+    Vector3 Table1arr[TABLE1_SIZE] = {
+        {0, .5f, 0 * distance},
+        {0, .5f, 1 * distance},
+        {0.75 * diameter, .5f, 0.5 * distance},
+        {0.75 * diameter, .5f, -0.5 * distance},
+        {0, .5f, -1 * distance},
+        {-0.75 * diameter, .5f, -0.5 * distance},
+        {-0.75 * diameter, .5f, 0.5 * distance},
+        {-0.75 * diameter, .5f, 1.5 * distance},
+        {0, .5f, 2 * distance},
+        {0.75 * diameter, .5f, 1.5 * distance},
+        {1.5 * diameter, .5f, 1 * distance},
+        {1.5 * diameter, .5f, 0 * distance},
+        {1.5 * diameter, .5f, -1 * distance},
+        {0.75 * diameter, .5f, -1.5 * distance},
+        {0, .5f, -2 * distance},
+        {-0.75 * diameter, .5f, -1.5 * distance},
+        {-1.5 * diameter, .5f, -1 * distance},
+        {-1.5 * diameter, .5f, 0 * distance},
+        {-1.5 * diameter, .5f, 1 * distance}
+    };
+
+    Vector3 Table2arr[TABLE2_SIZE] = {
+        {0, .5f, 0 * distance},
+        {0, .5f, 1 * distance},
+        {0.75 * diameter, .5f, 0.5 * distance},
+        {0.75 * diameter, .5f, -0.5 * distance},
+        {0, .5f, -1 * distance},
+        {-0.75 * diameter, .5f, -0.5 * distance},
+        {-0.75 * diameter, .5f, 0.5 * distance},
+        {-0.75 * diameter, .5f, 1.5 * distance},
+        {0, .5f, 2 * distance},
+        {0.75 * diameter, .5f, 1.5 * distance},
+        {1.5 * diameter, .5f, 1 * distance},
+        {2.25 * diameter, .5f, 0.5 * distance},
+        {3 * diameter, .5f, 0 * distance},
+        {2.25 * diameter, .5f, -0.5 * distance},
+        {1.5 * diameter, .5f, 0 * distance},
+        {1.5 * diameter, .5f, -1 * distance},
+        {0.75 * diameter, .5f, -1.5 * distance},
+        {0, .5f, -2 * distance},
+        {-0.75 * diameter, .5f, -1.5 * distance},
+        {-1.5 * diameter, .5f, -1 * distance},
+        {-1.5 * diameter, .5f, 0 * distance},
+        {-1.5 * diameter, .5f, 1 * distance},
+        {-2.25 * diameter, .5f, 0.5 * distance},
+        {-2.25 * diameter, .5f, -0.5 * distance},
+        {-3 * diameter, .5f, 0 * distance}
+    };
+
+    Vector3 Table3arr[TABLE3_SIZE] = {
+        //{0, .5f, 0},
+        {0, .5f, 1 * distance},
+        {0.75 * diameter, .5f, 0.5 * distance},
+        {0.75 * diameter, .5f, -0.5 * distance},
+        {0, .5f, -1 * distance},
+        {-0.75 * diameter, .5f, -0.5 * distance},
+        {-0.75 * diameter, .5f, 0.5 * distance},
+        {-0.75 * diameter, .5f, 1.5 * distance},
+        {0, .5f, 2 * distance},
+        {0.75 * diameter, .5f, 1.5 * distance},
+        //{1.5 * diameter, .5f, 1 * distance},
+        {1.5 * diameter, .5f, 0 * distance},
+        {1.5 * diameter, .5f, -1 * distance},
+        {0.75 * diameter, .5f, -1.5 * distance},
+        //{0, .5f, -2 * distance},
+        {-0.75 * diameter, .5f, -1.5 * distance},
+        {-1.5 * diameter, .5f, -1 * distance},
+        {-1.5 * diameter, .5f, 0 * distance},
+        //{-1.5 * diameter, .5f, 1 * distance},
+        {-1.5 * diameter, .5f, 2 * distance},
+        {-0.75 * diameter, .5f, 2.5 * distance},
+        {0, .5f, 3 * distance},
+        {0.75 * diameter, .5f, 2.5 * distance},
+        {1.5 * diameter, .5f, 2 * distance},
+        {2.25 * diameter, .5f, 1.5 * distance},
+        {2.25 * diameter, .5f, 0.5 * distance},
+        {3 * diameter, .5f, 0 * distance},
+        {2.25 * diameter, .5f, -0.5 * distance},
+        {2.25 * diameter, .5f, -1.5 * distance},
+        {1.5 * diameter, .5f, -2 * distance},
+        {0.75 * diameter, .5f, -2.5 * distance},
+        {0, .5f, -3 * distance},
+        {-0.75 * diameter, .5f, -2.5 * distance},
+        {-1.5 * diameter, .5f, -2 * distance},
+        {-2.25 * diameter, .5f, -1.5 * distance},
+        {-2.25 * diameter, .5f, -0.5 * distance},
+        {-2.25 * diameter, .5f, 0.5 * distance},
+        {-2.25 * diameter, .5f, 1.5 * distance},
+        {-3 * diameter, .5f, 0 * distance}
+    };
+
+    HexagonStackMember* first1 = NULL;
+    HexagonStackMember* first2 = NULL;
+    HexagonStackMember* first3 = NULL;
+
+    CreateStack1(&first1, GetRandomNumber5To15());
+
+    CreateStack2(&first2, GetRandomNumber5To15());
+
+    CreateStack3(&first3, GetRandomNumber5To15());
+
+    InitCamera(&MyCamera, (Vector3) { 0.0f, 50.0f, -50.0f }, (Vector3) { 0.0f, 0.0f, -1.5 * distance }, (Vector3) { 0.0f, 1.0f, 0.0f }, 50.0f, CAMERA_PERSPECTIVE);
+
+    while (!exit_button_state && game_running) {
+
+        LoopMusic();
+
+        BeginDrawing();
+
+        if (start_button_state) {
+
+            if (IsKeyPressed(KEY_ESCAPE)) {
+
+                esc_options_button_state = 1;
+                start_button_state = 0;
+            }
+
+            DrawScaledTextEx(EuclidOptionsFamily(), TextFormat("Level %d", level), (Vector2) { 0.02f, 0.025f }, 80, 0, DARKBLUE);
+            DrawScaledTextEx(EuclidOptionsFamily(), TextFormat("Score %d", score), (Vector2) { 0.02f, 0.1f }, 80, 0, BLACK);
+
+            RotateCamera(&argument, &modulus1, &height, &modulus2, &mylight, &myshader);
+
+            RotateCamera(&argument, &modulus1, &height, &modulus2, &mylight, &myshader);
+
+            ClearBackground((Color) { 195, 195, 195, 255 });
+
+            BeginMode3D(MyCamera);
+
+            slot3_x = turning_radius * cos(atan((1.5 * diameter) / (5.75 * distance)) + argument);
+            slot3_z = -turning_radius * sin(atan((1.5 * diameter) / (5.75 * distance)) + argument);
+            slot2_x = 5.75 * distance * cos(argument);
+            slot2_z = -5.75 * distance * sin(argument);
+            slot1_x = turning_radius * cos(-atan((1.5 * diameter) / (5.75 * distance)) + argument);
+            slot1_z = -turning_radius * sin(-atan((1.5 * diameter) / (5.75 * distance)) + argument);
+            stabilizer_argument = (argument * 180 / PI) + 30;
+
+            temporary_selection = RotateStack(&selected_stack_index, &slot_state_1, &slot_state_2, &slot_state_3);
+
+            if (temporary_selection != -1) {
+
+                selected = temporary_selection;
+            }
+
+            if (level == 1) {
+
+                CurrentTable = Table1Slots;
+
+            }
+            else if (level == 2) {
+
+                CurrentTable = Table2Slots;
+            }
+            else {
+
+                CurrentTable = Table3Slots;
+            }
+
+            DrawTable(level, distance, diameter);
+
+            if (!slot_state_1 && !slot_state_2 && !slot_state_3) {
+
+                free(first1); free(first2); free(first3);
+                CreateStack1(&first1, GetRandomNumber5To15());
+                CreateStack2(&first2, GetRandomNumber5To15());
+                CreateStack3(&first3, GetRandomNumber5To15());
+                slot_state_1 = 1; slot_state_2 = 1; slot_state_3 = 1;
+            }
+
+
+            if (selected == 0) {
+
+                if (slot_state_1 && !up_selected) {
+
+                    DrawSelectedStack(&first1, slot1_x, slot1_z, stabilizer_argument);
+                }
+                if (slot_state_2)
+                    DrawStack(&first2, slot2_x, slot2_z, stabilizer_argument);
+                if (slot_state_3)
+                    DrawStack(&first3, slot3_x, slot3_z, stabilizer_argument);
+            }
+
+            else if (selected == 1) {
+
+                if (slot_state_1)DrawStack(&first1, slot1_x, slot1_z, stabilizer_argument);
+                if (slot_state_2 && !up_selected) {
+
+                    DrawSelectedStack(&first2, slot2_x, slot2_z, stabilizer_argument);
+                }
+                if (slot_state_3) DrawStack(&first3, slot3_x, slot3_z, stabilizer_argument);
+            }
+            else if (selected == 2)
+            {
+                if (slot_state_1) DrawStack(&first1, slot1_x, slot1_z, stabilizer_argument);
+                if (slot_state_2) DrawStack(&first2, slot2_x, slot2_z, stabilizer_argument);
+                if (slot_state_3 && !up_selected) {
+
+                    DrawSelectedStack(&first3, slot3_x, slot3_z, stabilizer_argument);
+                }
+            }
+
+            if (requested == 0) {
+
+                Server = (PermanantHexagonStackMember*)malloc(sizeof(PermanantHexagonStackMember));
+                requested = 1;
+            }
+
+            if (IsKeyPressed(KEY_UP)) {
+
+                if (up_selected) {
+
+                    up_selected = false;
+
+                    if (Server != NULL) {
+                        FreeServerList(&Server);
+                    }
+                    copied = 0;
+                }
+
+                else {
+
+                    up_selected = true;
+                }
+            }
+
+            if (up_selected && selected == 0) {
+
+                if (copied == 0) {
+
+                    CopySlotStackToPermanantStack(first1, &Server);
+                    copied = 1;
+                }
+
+                capture_location = RotateSlot(distance, diameter, &(Server->location), up_selected, level, Table1arr, Table2arr, Table3arr, argument);
+
+                if (capture_location != -1) {
+
+                    real_location = capture_location;
+                }
+
+                DrawStack(&first1, Server->location.x, Server->location.z, 0);
+
+                if (IsKeyPressed(KEY_DOWN)) {
+
+                    up_selected = false;
+                    requested = 0;
+                    copied = 0;
+                    slot_state_1 = 0;
+                    if (capture_location != -1 && CurrentTable[real_location] == NULL) {
+
+                        LockInPositionForPermaStack(&Server);
+                        CurrentTable[real_location] = Server;
+                        selected_stack_index = (selected_stack_index + 1) % 3;
+                    }
+                    else {
+                        printf("Location is NOT empty");
+                        FreeServerList(&Server);
+                        requested = 1;
+                        slot_state_1 = 1;
+                    }
+
+                    real_location = 0;
+                }
+            }
+
+            else if (up_selected && selected == 1) {
+
+                if (copied == 0) {
+
+                    CopySlotStackToPermanantStack(first2, &Server);
+                    copied = 1;
+                }
+
+                capture_location = RotateSlot(distance, diameter, &(Server->location), up_selected, level, Table1arr, Table2arr, Table3arr, argument);
+
+                if (capture_location != -1) {
+
+                    real_location = capture_location;
+                }
+
+                DrawStack(&first2, Server->location.x, Server->location.z, 0);
+
+                if (IsKeyPressed(KEY_DOWN)) {
+
+                    up_selected = false;
+                    requested = 0;
+                    copied = 0;
+                    slot_state_2 = 0;
+
+                    if (capture_location != -1 && CurrentTable[real_location] == NULL) {
+
+                        LockInPositionForPermaStack(&Server);
+                        CurrentTable[real_location] = Server;
+                        selected_stack_index = (selected_stack_index + 1) % 3;
+                    }
+                    else {
+                        printf("Location is NOT empty");
+                        FreeServerList(&Server);
+                        requested = 1;
+                        slot_state_2 = 1;
+                    }
+
+                    real_location = 0;
+                }
+            }
+
+            else if (up_selected && selected == 2) {
+
+                if (copied == 0) {
+
+                    CopySlotStackToPermanantStack(first3, &Server);
+                    copied = 1;
+                }
+
+                capture_location = RotateSlot(distance, diameter, &(Server->location), up_selected, level, Table1arr, Table2arr, Table3arr, argument);
+
+                if (capture_location != -1) {
+
+                    real_location = capture_location;
+                }
+
+                DrawStack(&first3, Server->location.x, Server->location.z, 0);
+
+                if (IsKeyPressed(KEY_DOWN)) {
+
+                    up_selected = false;
+                    requested = 0;
+                    copied = 0;
+                    slot_state_3 = 0;
+
+                    if (capture_location != -1 && CurrentTable[real_location] == NULL) {
+
+                        LockInPositionForPermaStack(&Server);
+                        CurrentTable[real_location] = Server;
+                        selected_stack_index = (selected_stack_index + 1) % 3;
+                    }
+                    else {
+
+                        printf("Location is NOT empty");
+                        FreeServerList(&Server);
+                        requested = 1;
+                        slot_state_3 = 1;
+                    }
+
+                    real_location = 0;
+                }
+            }
+            if (level == 1) {
+
+                DrawAllPermaStacksTable1(TABLE1_SIZE);
+                TraverseTable1();
+                CheckHexagonsToPop1(&score);
+
+            }
+
+            else if (level == 2) {
+
+                DrawAllPermaStacksTable2(TABLE2_SIZE);
+                TraverseTable2();
+                CheckHexagonsToPop2(&score);
+            }
+
+            else if (level == 3) {
+
+                DrawAllPermaStacksTable3(TABLE3_SIZE);
+                TraverseTable3();
+                CheckHexagonsToPop3(&score);
+            }
+
+            if (IsTableFull(level, Table1Slots, Table2Slots, Table3Slots) == 1) {
+                is_table_full = IsTableFull(level, Table1Slots, Table2Slots, Table3Slots);
+            }
+
+            EndMode3D();
+        }
+
+        else if (esc_options_button_state) {
+
+            ExecuteEscOptions();
+
+        }
+
+        else if (options_button_state) {
+
+            ExecuteOptions(&options_button_state);
+        }
+        else if (play_button_state) {
+
+            ShowHowToPlayScreen(&play_button_state);
+        }
+
+        else {
+
+            ExecuteMenu(&start_button_state, &options_button_state, &play_button_state, &exit_button_state);//////////BBBBBBBBB
+        }
+        ScoreLevel(&first1, &first2, &first3, &level, is_table_full, &game_running, &slot_state_1, &slot_state_2, &slot_state_3, &score);
+
+        EndDrawing();
+    }
+
+    UnloadFonts();
+    UnloadModels();
+    UnloadShadersMusicAndBackground();
+    CloseAudioDevice();
+    if (!game_running)
+        WaitTime(3.5);// 3.5 saniye (3500 milisaniye) bekle
+    CloseWindow();
+
+    return 0;
+}
+
+Vector2 DrawCenteredTextEx(Font font, const char* text, Vector2 position, float fontSize, float spacing, Color tint) {
+
+    Vector2 textsize = MeasureTextEx(font, text, fontSize, spacing);
+    Vector2 centered_pos;
+
+    centered_pos.x = (position.x) - ((textsize.x) / 2);
+    centered_pos.y = (position.y) - ((textsize.y) / 2);
+
+    DrawTextEx(font, text, centered_pos, fontSize, spacing, tint);
+
+    return centered_pos;
+}
+
+void DrawScaledTextEx(Font font, const char* text, Vector2 ratios, float fontSize, float spacing, Color tint) {
+
+    DrawTextEx(font, text, (Vector2) { ratios.x* (float)GetScreenWidth(), ratios.y* (float)GetScreenHeight() }, fontSize* ReturnAppopriateScale(), spacing, tint);
+}
+
+Vector2 FindCornerForCenteredTextEx(Font font, const char* text, Vector2 position, float fontSize, float spacing) {
+
+    Vector2 textsize = MeasureTextEx(font, text, fontSize, spacing);
+    Vector2 centered_pos;
+
+    centered_pos.x = (position.x) - ((textsize.x) / 2);
+    centered_pos.y = (position.y) - ((textsize.y) / 2);
+
+    return centered_pos;
+}
+
+Vector2 FindCornerForCenteredTextScaledEx(Font font, const char* text, Vector2 ratios, float fontSize, float spacing) {
+
+    return FindCornerForCenteredTextEx(font, text, (Vector2) { (ratios.x)* (float)GetScreenWidth(), (ratios.y)* (float)GetScreenHeight() }, fontSize* ReturnAppopriateScale(), spacing);
+}
+
+float ReturnAppopriateScale() {
+
+    if (win_flag) {
+
+        return 1;
+    }
+
+    return (0.5);
+}
+
+void FullscreenToggle() {
+
+    if (!win_flag) {
+
+        SetWindowSize(1920, 1080);
+        ToggleBorderlessWindowed();
+        win_flag = 1;
+    }
+
+    else if (win_flag) {
+
+        ToggleBorderlessWindowed();
+        SetWindowSize(960, 540);
+        win_flag = 0;
+    }
+}
+
+void ExecuteMenu(int* p_start_button_state, int* p_options_button_state, int* p_play_button_state, int* p_exit_button_state) {
+
+    DrawTextureEx(Background, (Vector2) { 0, 0 }, 0, ReturnAppopriateScale(), WHITE);
+
+    DrawScaledCenteredTextEx(EuclidFamily(1), "Hexa Sort", (Vector2) { 0.5, 1.0f / 3.0f }, 200, 0, BLUE);
+
+    DrawCenteredPopupButtonWithScale(EuclidFamily(0), EuclidPopupFamily(), p_start_button_state, "Start", (Vector2) { 0.5, 0.55 }, 100, 110, 0, WHITE, GREEN, 1);
+    DrawCenteredPopupButtonWithScale(EuclidFamily(0), EuclidPopupFamily(), p_options_button_state, "Options", (Vector2) { 0.5, 0.65 }, 100, 110, 0, WHITE, GREEN, 1);
+    DrawCenteredPopupButtonWithScale(EuclidFamily(0), EuclidPopupFamily(), p_play_button_state, "How To Play", (Vector2) { 0.5, 0.758 }, 100, 110, 0, WHITE, GREEN, 1);/////BBBBB
+    DrawCenteredPopupButtonWithScale(EuclidFamily(0), EuclidPopupFamily(), p_exit_button_state, "Exit", (Vector2) { 0.5, 0.9 }, 100, 110, 0, WHITE, RED, 1);
+
+}
+
+void ExecuteOptions(int* p_options_button_state) {
+
+    DrawTextureEx(Background, (Vector2) { 0, 0 }, 0, ReturnAppopriateScale(), WHITE);
+
+    DrawCenteredPopupButtonWithScale(EuclidFamily(0), EuclidPopupFamily(), p_options_button_state, "Return", (Vector2) { 0.88, 0.9 }, 100, 110, 0, WHITE, RED, 0);
+
+    DrawScaledTextEx(EuclidOptionsFamily(), "Fullscreen", (Vector2) { 0.05, 0.55 }, 80, 0, WHITE);
+    DrawScaledTextEx(EuclidOptionsFamily(), "Music", (Vector2) { 0.05, 0.65 }, 80, 0, WHITE);
+
+    if (win_flag) {
+
+        MyToggleFullscreen(EuclidOptionsFamily(0), EuclidOptionsFamily(0), "Off", (Vector2) { 0.40, 0.55 }, 80, 80, 0, WHITE, RED);
+        DrawScaledTextEx(EuclidOptionsFamily(0), "On", (Vector2) { 0.32, 0.55 }, 80, 0, GREEN);
+    }
+    else {
+
+        MyToggleFullscreen(EuclidOptionsFamily(0), EuclidOptionsFamily(0), "On", (Vector2) { 0.32, 0.55 }, 80, 80, 0, WHITE, GREEN);
+        DrawScaledTextEx(EuclidOptionsFamily(0), "Off", (Vector2) { 0.40, 0.55 }, 80, 0, RED);
+    }
+
+    if (music_flag) {
+
+        MyToggleMusic(EuclidOptionsFamily(0), EuclidOptionsFamily(0), "Off", (Vector2) { 0.40, 0.65 }, 80, 80, 0, WHITE, RED);
+        DrawScaledTextEx(EuclidOptionsFamily(0), "On", (Vector2) { 0.32, 0.65 }, 80, 0, GREEN);
+
+    }
+
+    else {
+
+        MyToggleMusic(EuclidOptionsFamily(0), EuclidOptionsFamily(0), "On", (Vector2) { 0.32, 0.65 }, 80, 80, 0, WHITE, GREEN);
+        DrawScaledTextEx(EuclidOptionsFamily(0), "Off", (Vector2) { 0.40, 0.65 }, 80, 0, RED);
+    }
+}
+
+void ExecuteEscOptions() {
+
+    DrawTextureEx(Background, (Vector2) { 0, 0 }, 0, ReturnAppopriateScale(), WHITE);
+
+    if (IsKeyPressed(KEY_ESCAPE)) {
+
+        esc_options_button_state = 0;
+        start_button_state = 1;
+        return;
+    }
+
+    DrawCenteredPopupButtonWithScale(EuclidFamily(0), EuclidPopupFamily(), &esc_options_button_state, "Menu", (Vector2) { 0.88, 0.9 }, 100, 110, 0, WHITE, RED, 0);
+
+    DrawScaledTextEx(EuclidOptionsFamily(), "Fullscreen", (Vector2) { 0.05, 0.55 }, 80, 0, WHITE);
+    DrawScaledTextEx(EuclidOptionsFamily(), "Music", (Vector2) { 0.05, 0.65 }, 80, 0, WHITE);
+
+    if (win_flag) {
+
+        MyToggleFullscreen(EuclidOptionsFamily(0), EuclidOptionsFamily(0), "Off", (Vector2) { 0.40, 0.55 }, 80, 80, 0, WHITE, RED);
+        DrawScaledTextEx(EuclidOptionsFamily(0), "On", (Vector2) { 0.32, 0.55 }, 80, 0, GREEN);
+    }
+    else {
+
+        MyToggleFullscreen(EuclidOptionsFamily(0), EuclidOptionsFamily(0), "On", (Vector2) { 0.32, 0.55 }, 80, 80, 0, WHITE, GREEN);
+        DrawScaledTextEx(EuclidOptionsFamily(0), "Off", (Vector2) { 0.40, 0.55 }, 80, 0, RED);
+    }
+
+    if (music_flag) {
+
+        MyToggleMusic(EuclidOptionsFamily(0), EuclidOptionsFamily(0), "Off", (Vector2) { 0.40, 0.65 }, 80, 80, 0, WHITE, RED);
+        DrawScaledTextEx(EuclidOptionsFamily(0), "On", (Vector2) { 0.32, 0.65 }, 80, 0, GREEN);
+
+    }
+
+    else {
+
+        MyToggleMusic(EuclidOptionsFamily(0), EuclidOptionsFamily(0), "On", (Vector2) { 0.32, 0.65 }, 80, 80, 0, WHITE, GREEN);
+        DrawScaledTextEx(EuclidOptionsFamily(0), "Off", (Vector2) { 0.40, 0.65 }, 80, 0, RED);
+    }
+}
+
+void ShowHowToPlayScreen(int* p_options_button_state) {////////////BBBBBBBB
+    float appropriateScale = ReturnAppopriateScale();
+    DrawTextureEx(Background, (Vector2) { 0, 0 }, 0, ReturnAppopriateScale(), WHITE);
+
+    DrawScaledCenteredTextEx(EuclidFamily(1), "Hexa Sort", (Vector2) { 0.5, 1.0f / 3.0f }, 200, 0, BLUE);
+    DrawScaledCenteredTextEx(EuclidFamily(0), "Use the right and left arrow keys to navigate between stacks.", (Vector2) { 0.2f, 0.55f }, 50, 0, WHITE);
+    DrawScaledCenteredTextEx(EuclidFamily(0), "The up arrow key sends the stack onto the table.", (Vector2) { 0.36f, 0.62f }, 50, 0, WHITE);
+    DrawScaledCenteredTextEx(EuclidFamily(0), "You can move on the board using the A W S D keys", (Vector2) { 0.37f, 0.69f }, 50, 0, WHITE);
+    DrawScaledCenteredTextEx(EuclidFamily(0), "You can lock the stack onto the table with the down arrow key.", (Vector2) { 0.465f, 0.76f }, 50, 0, WHITE);
+    DrawCenteredPopupButtonWithScale(EuclidFamily(0), EuclidPopupFamily(), p_options_button_state, "Return", (Vector2) { 0.88, 0.9 }, 100, 110, 0, WHITE, RED, 0);
+
+
+    // "How to Play" ekranından çıkmak için bir tuşa basılmasını bekleyin
+    if (IsKeyPressed(KEY_ESCAPE)) {
+        options_button_state = 1;
+        play_button_state = 0;
+
+    }
+}
+
+Vector2 DrawScaledCenteredTextEx(Font font, const char* text, Vector2 ratios, float fontSize, float spacing, Color tint) {
+
+    return DrawCenteredTextEx(font, text, (Vector2) { (ratios.x)* (float)GetScreenWidth(), (ratios.y)* (float)GetScreenHeight() }, fontSize* ReturnAppopriateScale(), spacing, tint);
+
+}
+
+Font EuclidFamily(int IsTitle) {
+
+    if (win_flag) {
+
+        if (IsTitle) {
+
+            return MyEuclid.EuclidTitleFullscreen;
+        }
+
+        else {
+
+            return MyEuclid.EuclidFullscreen;
+        }
+    }
+
+    else {
+
+        if (IsTitle) {
+
+            return MyEuclid.EuclidTitleWindowed;
+        }
+
+        else {
+
+            return MyEuclid.EuclidWindowed;
+        }
+    }
+}
+
+Font EuclidPopupFamily()
+{
+
+    if (win_flag) {
+
+        return MyPopup.EuclidPopupFullscreen;
+    }
+
+    else {
+
+        return MyPopup.EuclidPopupWindowed;
+    }
+}
+
+void DrawCenteredPopupButtonWithScale(Font font, Font popupfont, int* p_button_state, const char* text, Vector2 ratios, float fontSize, float popedfontSize, float spacing, Color tint, Color poptint, int setstate) {
+
+    Vector2 ButtonCorner = FindCornerForCenteredTextScaledEx(font, text, ratios, fontSize, spacing);
+
+    Rectangle Button;
+    Button.x = ButtonCorner.x;
+    Button.y = ButtonCorner.y;
+    Button.width = MeasureTextEx(font, text, ReturnAppopriateScale() * fontSize, spacing).x;
+    Button.height = MeasureTextEx(font, text, ReturnAppopriateScale() * fontSize, spacing).y;
+
+    if (CheckCollisionPointRec(GetMousePosition(), Button)) {
+
+        DrawScaledCenteredTextEx(popupfont, text, ratios, popedfontSize, spacing, poptint);
+
+        if (IsMouseButtonPressed(0)) {
+
+            *p_button_state = setstate;
+        }
+    }
+    else {
+
+        DrawScaledCenteredTextEx(font, text, ratios, fontSize, spacing, tint);
+    }
+
+}
+
+void InitCamera(Camera* camera, Vector3 Position, Vector3 Target, Vector3 Up, float Fovy, int Projection) {
+
+    (*camera).position = Position;
+    (*camera).target = Target;
+    (*camera).up = Up;
+    (*camera).fovy = Fovy;
+    (*camera).projection = Projection;
+
+}
+
+void InitFonts() {
+
+    MyEuclid.EuclidTitleFullscreen = LoadFontEx("../Resource Files(made up)/Fonts/Euclid Regular.otf", 200, NULL, 0);
+    MyEuclid.EuclidTitleWindowed = LoadFontEx("../Resource Files(made up)/Fonts/Euclid Regular.otf", 100, NULL, 0);
+    MyEuclid.EuclidFullscreen = LoadFontEx("../Resource Files(made up)/Fonts/Euclid Regular.otf", 100, NULL, 0);
+    MyEuclid.EuclidWindowed = LoadFontEx("../Resource Files(made up)/Fonts/Euclid Regular.otf", 50, NULL, 0);
+    MyPopup.EuclidPopupFullscreen = LoadFontEx("../Resource Files(made up)/Fonts/Euclid Regular.otf", 110, NULL, 0);
+    MyPopup.EuclidPopupWindowed = LoadFontEx("../Resource Files(made up)/Fonts/Euclid Regular.otf", 55, NULL, 0);
+    MyOptions.EuclidOptionsWindowed = LoadFontEx("../Resource Files(made up)/Fonts/Euclid Regular.otf", 40, NULL, 0);
+    MyOptions.EuclidOptionsFullscreen = LoadFontEx("../Resource Files(made up)/Fonts/Euclid Regular.otf", 80, NULL, 0);
+}
+
+void InitModels() {
+
+    GreenHexagon = LoadModel("../Resource Files(made up)/Hexagons/Green/greenhexagon.obj");
+    YellowHexagon = LoadModel("../Resource Files(made up)/Hexagons/Yellow/yellowhexagon.obj");
+    RedHexagon = LoadModel("../Resource Files(made up)/Hexagons/Red/redhexagon.obj");
+    BlueHexagon = LoadModel("../Resource Files(made up)/Hexagons/Blue/bluehexagon.obj");
+    TurquoiseHexagon = LoadModel("../Resource Files(made up)/Hexagons/Turquoise/turquoisehexagon.obj");
+    WhiteHexagon = LoadModel("../Resource Files(made up)/Hexagons/White/whitehexagon.obj");
+    GrayHexagon = LoadModel("../Resource Files(made up)/Hexagons/Gray/grayhexagon.obj");
+    Gray2Hexagon = LoadModel("../Resource Files(made up)/Hexagons/Gray(Table)/gray(table)hexagon.obj");
+    PurpleHexagon = LoadModel("../Resource Files(made up)/Hexagons/Purple/purplehexagon.obj");
+    Table1 = LoadModel("../Resource Files(made up)/Hexagons/Table/hexasort_table.obj");
+    Table2 = LoadModel("../Resource Files(made up)/Hexagons/Table/hexasort_table2.obj");
+    Table3 = LoadModel("../Resource Files(made up)/Hexagons/Table/hexasort_table3.obj");
+}
+
+void InitShadersLightMusicAndBackground() {
+
+    myshader = LoadShader("../Resource Files(made up)/resources/shaders/glsl330/lighting.vs", "../Resource Files(made up)/resources/shaders/glsl330/lighting.fs");
+    myshader.locs[SHADER_LOC_VECTOR_VIEW] = GetShaderLocation(myshader, "viewPos");
+    int ambientLoc = GetShaderLocation(myshader, "ambient");
+    SetShaderValue(myshader, ambientLoc, (float[4]) { 0.1f, 0.1f, 0.1f, 1.0f }, SHADER_UNIFORM_VEC4);
+    mylight = CreateLight(LIGHT_POINT, (Vector3) { 0.0f, 61.0f, -81.0f }, Vector3Zero(), WHITE, myshader);
+    GreenHexagon.materials[0].shader = myshader;
+    YellowHexagon.materials[0].shader = myshader;
+    RedHexagon.materials[0].shader = myshader;
+    BlueHexagon.materials[0].shader = myshader;
+    PurpleHexagon.materials[0].shader = myshader;
+    WhiteHexagon.materials[0].shader = myshader;
+    GrayHexagon.materials[0].shader = myshader;
+    Gray2Hexagon.materials[0].shader = myshader;
+    TurquoiseHexagon.materials[0].shader = myshader;
+    Table1.materials[0].shader = myshader;
+    Table2.materials[0].shader = myshader;
+    Table3.materials[0].shader = myshader;
+    myMusic = LoadSound("../Resource Files(made up)/Music/cute.mp3");
+    Background = LoadTexture("../Resource Files(made up)/Textures/hexasort.png");
+}
+
+void UnloadFonts() {
+
+    UnloadFont(MyEuclid.EuclidTitleFullscreen);
+    UnloadFont(MyEuclid.EuclidTitleWindowed);
+    UnloadFont(MyEuclid.EuclidFullscreen);
+    UnloadFont(MyEuclid.EuclidWindowed);
+    UnloadFont(MyPopup.EuclidPopupFullscreen);
+    UnloadFont(MyPopup.EuclidPopupWindowed);
+    UnloadFont(MyOptions.EuclidOptionsFullscreen);
+    UnloadFont(MyOptions.EuclidOptionsWindowed);
+}
+
+void UnloadModels() {
+
+    UnloadModel(GreenHexagon);
+    UnloadModel(YellowHexagon);
+    UnloadModel(BlueHexagon);
+    UnloadModel(RedHexagon);
+    UnloadModel(TurquoiseHexagon);
+    UnloadModel(PurpleHexagon);
+    UnloadModel(WhiteHexagon);
+    UnloadModel(GrayHexagon);
+    UnloadModel(Gray2Hexagon);
+    UnloadModel(Table1);
+    UnloadModel(Table2);
+    UnloadModel(Table3);
+}
+
+void UnloadShadersMusicAndBackground() {
+
+    UnloadTexture(Background);
+    UnloadShader(myshader);
+    UnloadSound(myMusic);
+}
+
+void MyToggleFullscreen(Font font, Font popupfont, const char* text, Vector2 ratios, float fontSize, float popedfontSize, float spacing, Color tint, Color poptint) {
+
+    Vector2 ButtonCorner = (Vector2){ ratios.x * (float)GetScreenWidth(),ratios.y * (float)GetScreenHeight() };
+
+    Rectangle Button;
+    Button.x = ButtonCorner.x;
+    Button.y = ButtonCorner.y;
+    Button.width = MeasureTextEx(font, text, ReturnAppopriateScale() * fontSize, spacing).x;
+    Button.height = MeasureTextEx(font, text, ReturnAppopriateScale() * fontSize, spacing).y;
+
+    if (CheckCollisionPointRec(GetMousePosition(), Button)) {
+
+        DrawScaledTextEx(popupfont, text, ratios, popedfontSize, spacing, poptint);
+
+        if (IsMouseButtonPressed(0)) {
+
+            FullscreenToggle();
+        }
+    }
+    else {
+
+        DrawScaledTextEx(font, text, ratios, fontSize, spacing, tint);
+    }
+
+}
+
+void MyToggleMusic(Font font, Font popupfont, const char* text, Vector2 ratios, float fontSize, float popedfontSize, float spacing, Color tint, Color poptint) {
+
+
+    Vector2 ButtonCorner = (Vector2){ ratios.x * (float)GetScreenWidth(),ratios.y * (float)GetScreenHeight() };
+
+    Rectangle Button;
+    Button.x = ButtonCorner.x;
+    Button.y = ButtonCorner.y;
+    Button.width = MeasureTextEx(font, text, ReturnAppopriateScale() * fontSize, spacing).x;
+    Button.height = MeasureTextEx(font, text, ReturnAppopriateScale() * fontSize, spacing).y;
+
+    if (CheckCollisionPointRec(GetMousePosition(), Button)) {
+
+        DrawScaledTextEx(popupfont, text, ratios, popedfontSize, spacing, poptint);
+
+        if (IsMouseButtonPressed(0)) {
+
+            ToggleMusic();
+        }
+    }
+    else {
+
+        DrawScaledTextEx(font, text, ratios, fontSize, spacing, tint);
+    }
+}
+
+void ToggleMusic() {
+
+    if (music_flag) {
+
+        music_flag = 0;
+        PauseSound(myMusic);
+
+    }
+    else {
+
+        music_flag = 1;
+        ResumeSound(myMusic);
+    }
+
+}
+
+Font EuclidOptionsFamily() {
+
+    if (win_flag) {
+
+        return MyOptions.EuclidOptionsFullscreen;
+    }
+
+    else {
+
+        return MyOptions.EuclidOptionsWindowed;
+    }
+}
+
+void RotateCamera(float* argument, float* modulus1, float* height, float* modulus2, Light* MyLight, Shader* MyShader) {
+
+    int divisor = 120;
+
+    if (IsKeyDown(KEY_P)) {
+
+        *argument += PI / divisor;
+
+        if (*argument > PI) {
+
+            *argument -= 2 * PI;
+        }
+
+        else if (*argument < -PI) {
+
+            *argument += 2 * PI;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+    }
+
+    else if (IsKeyDown(KEY_O)) {
+
+        *argument -= PI / divisor;
+
+        if (*argument > PI) {
+
+            *argument -= 2 * PI;
+        }
+
+        else if (*argument < -PI) {
+
+            *argument += 2 * PI;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+    }
+
+    if (0 < *argument && *argument < (PI / 6) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (PI / 6)) < 0.0001)) {
+
+            *argument = PI / 6;
+        }
+
+        else {
+
+            *argument += PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((PI / 6) < *argument && *argument < (PI / 3) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (PI / 6)) < 0.0001)) {
+
+            *argument = PI / 6;
+        }
+
+        else {
+
+            *argument -= PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((PI / 3) < *argument && *argument < (PI / 2) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (PI / 2)) < 0.0001)) {
+
+            *argument = PI / 2;
+        }
+
+        else {
+
+            *argument += PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((PI / 2) < *argument && *argument < (4 * PI / 6) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (PI / 2)) < 0.0001)) {
+
+            *argument = PI / 2;
+        }
+
+        else {
+
+            *argument -= PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((4 * PI / 6) < *argument && *argument < (5 * PI / 6) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (5 * PI / 6)) < 0.0001)) {
+
+            *argument = 5 * PI / 6;
+        }
+
+        else {
+
+            *argument += PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((5 * PI / 6) < *argument && *argument < (PI) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (5 * PI / 6)) < 0.0001)) {
+
+            *argument = 5 * PI / 6;
+        }
+
+        else {
+
+            *argument -= PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((-PI) < *argument && *argument < (-5 * PI / 6) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (-5 * PI / 6)) < 0.0001)) {
+
+            *argument = -5 * PI / 6;
+        }
+
+        else {
+
+            *argument += PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((-5 * PI / 6) < *argument && *argument < (-4 * PI / 6) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (-5 * PI / 6)) < 0.0001)) {
+
+            *argument = -5 * PI / 6;
+        }
+
+        else {
+
+            *argument -= PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((-4 * PI / 6) < *argument && *argument < (-PI / 2) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (-PI / 2)) < 0.0001)) {
+
+            *argument = -PI / 2;
+        }
+
+        else {
+
+            *argument += PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((-PI / 2) < *argument && *argument < (-PI / 3) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (-PI / 2)) < 0.0001)) {
+
+            *argument = -PI / 2;
+        }
+
+        else {
+
+            *argument -= PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((-PI / 3) < *argument && *argument < (-PI / 6) && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (-PI / 6)) < 0.0001)) {
+
+            *argument = -PI / 6;
+        }
+
+        else {
+
+            *argument += PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+    else if ((-PI / 6) < *argument && *argument < 0 && !IsKeyDown(KEY_O) && !IsKeyDown(KEY_P)) {
+
+        if ((fabs(*argument - (-PI / 6)) < 0.0001)) {
+
+            *argument = -PI / 6;
+        }
+
+        else {
+
+            *argument -= PI / divisor;
+        }
+
+        MyCamera.position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        MyCamera.target = (Vector3){ *modulus2 * cos(*argument), 0.0f, -*modulus2 * sin(*argument) };
+        MyLight->position = (Vector3){ *modulus1 * cos(*argument), *height , -*modulus1 * sin(*argument) };
+        UpdateLightValues(*MyShader, *MyLight);
+
+    }
+
+}
+
+void LoopMusic() {
+
+    if (!IsSoundPlaying(myMusic) && music_flag) {
+
+        PlaySound(myMusic);
+    }
+}
+
+void CreateStack1(HexagonStackMember** p_first, int limit) {
+
+    srand(time(NULL));
+
+    HexagonStackMember* temp = NULL;
+    HexagonStackMember* previous_t = NULL;
+
+    int transitionMatrix1[NUM_OF_COLORS][NUM_OF_COLORS] = {
+        {90,10,0,0,0,0,0,0}, // kırmızı
+        {0,90,10,0,0,0,0,0}, // yeşil
+        {0,0,90,10,0,0,0,0}, // mavi
+        {0,0,0,90,10,0,0,0}, // sarı
+        {0,0,0,0,90,10,0,0}, // turkuaz
+        {0,0,0,0,0,90,10,0}, // mor
+        {0,0,0,0,0,0,90,10}, // beyaz 
+        {10,0,0,0,0,0,0,90}  // gri
+    };
+
+    int currentColorIndex = rand() % NUM_OF_COLORS;
+
+    for (int i = 0; i < limit; i++) {
+
+        if (i == 0) {
+
+            *p_first = (HexagonStackMember*)malloc(sizeof(HexagonStackMember));
+            if (*p_first == NULL) exit(1);
+
+            (*p_first)->next = NULL;
+            (*p_first)->previous = NULL;
+
+            int randomValue = rand() % 100;
+            int sum = 0;
+            int nextColorIndex = 0;
+            for (int j = 0; j < NUM_OF_COLORS; j++) {
+                sum += transitionMatrix1[currentColorIndex][j];
+                if (randomValue < sum) {
+                    nextColorIndex = j;
+                    break;
+                }
+            }
+
+            switch (nextColorIndex) {
+            case 0:
+                (*p_first)->color = RedHexagon;
+                (*p_first)->real_color = RED;
+                break;
+            case 1:
+                (*p_first)->color = GreenHexagon;
+                (*p_first)->real_color = GREEN;
+                break;
+            case 2:
+                (*p_first)->color = BlueHexagon;
+                (*p_first)->real_color = BLUE;
+                break;
+            case 3:
+                (*p_first)->color = YellowHexagon;
+                (*p_first)->real_color = YELLOW;
+                break;
+            case 4:
+                (*p_first)->color = TurquoiseHexagon;
+                (*p_first)->real_color = SKYBLUE;
+                break;
+            case 5:
+                (*p_first)->color = PurpleHexagon;
+                (*p_first)->real_color = PURPLE;
+                break;
+            case 6:
+                (*p_first)->color = WhiteHexagon;
+                (*p_first)->real_color = WHITE;
+                break;
+            case 7:
+                (*p_first)->color = GrayHexagon;
+                (*p_first)->real_color = GRAY;
+                break;
+            default:
+                (*p_first)->color = Gray2Hexagon;
+                (*p_first)->real_color = GRAY;
+                break;
+            }
+
+            currentColorIndex = nextColorIndex;
+            previous_t = *p_first;
+
+        }
+        else {
+
+            temp = (HexagonStackMember*)malloc(sizeof(HexagonStackMember));
+            if (temp == NULL) exit(1);
+
+            temp->previous = previous_t;
+            temp->next = NULL;
+
+            int randomValue = rand() % 100;
+            int sum = 0;
+            int nextColorIndex = 0;
+            for (int j = 0; j < NUM_OF_COLORS; j++) {
+                sum += transitionMatrix1[currentColorIndex][j];
+                if (randomValue < sum) {
+                    nextColorIndex = j;
+                    break;
+                }
+            }
+
+            switch (nextColorIndex) {
+            case 0:
+                temp->color = RedHexagon;
+                temp->real_color = RED;
+                break;
+            case 1:
+                temp->color = GreenHexagon;
+                temp->real_color = GREEN;
+                break;
+            case 2:
+                temp->color = BlueHexagon;
+                temp->real_color = BLUE;
+                break;
+            case 3:
+                temp->color = YellowHexagon;
+                temp->real_color = YELLOW;
+                break;
+            case 4:
+                temp->color = TurquoiseHexagon;
+                temp->real_color = SKYBLUE;
+                break;
+            case 5:
+                temp->color = PurpleHexagon;
+                temp->real_color = PURPLE;
+                break;
+            case 6:
+                temp->color = WhiteHexagon;
+                temp->real_color = WHITE;
+                break;
+            case 7:
+                temp->color = GrayHexagon;
+                temp->real_color = GRAY;
+                break;
+            default:
+                temp->color = Gray2Hexagon;
+                temp->real_color = GRAY;
+                break;
+            }
+
+            currentColorIndex = nextColorIndex;
+            previous_t->next = temp;
+            previous_t = temp;
+        }
+    }
+}
+
+void CreateStack2(HexagonStackMember** p_first, int limit) {
+
+    srand(time(NULL) + 1);
+
+    HexagonStackMember* temp = NULL;
+    HexagonStackMember* previous_t = NULL;
+
+    int transitionMatrix2[NUM_OF_COLORS][NUM_OF_COLORS] = {
+        {90, 10, 0, 0, 0, 0, 0, 0}, // kırmızı
+        {0, 90, 10, 0, 0, 0, 0, 0}, // yeşil
+        {0, 0, 90, 10, 0, 0, 0, 0}, // mavi
+        {10, 0, 0, 90, 0, 0, 0, 0}, // sarı
+        {0, 0, 0, 0, 90, 10, 0, 0}, // turkuaz
+        {0, 0, 0, 0, 0, 90, 10, 0}, // mor (Yeni renk)
+        {0, 0, 0, 0, 0, 0, 90, 10}, // beyaz (Yeni renk)
+        {10, 0, 0, 0, 0, 0, 0, 90}  // gri (Yeni renk)
+    };
+
+    int currentColorIndex = rand() % NUM_OF_COLORS;
+
+    for (int i = 0; i < limit; i++) {
+
+        if (i == 0) {
+
+            *p_first = (HexagonStackMember*)malloc(sizeof(HexagonStackMember));
+            if (*p_first == NULL) exit(1);
+
+            (*p_first)->next = NULL;
+            (*p_first)->previous = NULL;
+
+            int randomValue = rand() % 100;
+            int sum = 0;
+            int nextColorIndex = 0;
+            for (int j = 0; j < NUM_OF_COLORS; j++) {
+                sum += transitionMatrix2[currentColorIndex][j];
+                if (randomValue < sum) {
+                    nextColorIndex = j;
+                    break;
+                }
+            }
+
+            switch (nextColorIndex) {
+            case 0:
+                (*p_first)->color = RedHexagon;
+                (*p_first)->real_color = RED;
+                break;
+            case 1:
+                (*p_first)->color = GreenHexagon;
+                (*p_first)->real_color = GREEN;
+                break;
+            case 2:
+                (*p_first)->color = BlueHexagon;
+                (*p_first)->real_color = BLUE;
+                break;
+            case 3:
+                (*p_first)->color = YellowHexagon;
+                (*p_first)->real_color = YELLOW;
+                break;
+            case 4:
+                (*p_first)->color = TurquoiseHexagon;
+                (*p_first)->real_color = SKYBLUE;
+                break;
+            case 5:
+                (*p_first)->color = PurpleHexagon;
+                (*p_first)->real_color = PURPLE;
+                break;
+            case 6:
+                (*p_first)->color = WhiteHexagon; // Yeni renk
+                (*p_first)->real_color = WHITE;
+                break;
+            case 7:
+                (*p_first)->color = GrayHexagon; // Yeni renk
+                (*p_first)->real_color = GRAY;
+                break;
+            default:
+                (*p_first)->color = Gray2Hexagon;
+                (*p_first)->real_color = GRAY;
+                break;
+            }
+
+            currentColorIndex = nextColorIndex;
+            previous_t = *p_first;
+
+        }
+        else {
+
+            temp = (HexagonStackMember*)malloc(sizeof(HexagonStackMember));
+            if (temp == NULL) exit(1);
+
+            temp->previous = previous_t;
+            temp->next = NULL;
+
+            int randomValue = rand() % 100;
+            int sum = 0;
+            int nextColorIndex = 0;
+            for (int j = 0; j < NUM_OF_COLORS; j++) {
+                sum += transitionMatrix2[currentColorIndex][j];
+                if (randomValue < sum) {
+                    nextColorIndex = j;
+                    break;
+                }
+            }
+
+            switch (nextColorIndex) {
+            case 0:
+                temp->color = RedHexagon;
+                temp->real_color = RED;
+                break;
+            case 1:
+                temp->color = GreenHexagon;
+                temp->real_color = GREEN;
+                break;
+            case 2:
+                temp->color = BlueHexagon;
+                temp->real_color = BLUE;
+                break;
+            case 3:
+                temp->color = YellowHexagon;
+                temp->real_color = YELLOW;
+                break;
+            case 4:
+                temp->color = TurquoiseHexagon;
+                temp->real_color = SKYBLUE;
+                break;
+            case 5:
+                temp->color = PurpleHexagon;
+                temp->real_color = PURPLE;
+                break;
+            case 6:
+                temp->color = WhiteHexagon; // Yeni renk
+                temp->real_color = WHITE;
+                break;
+            case 7:
+                temp->color = GrayHexagon; // Yeni renk
+                temp->real_color = GRAY;
+                break;
+            default:
+                temp->color = Gray2Hexagon;
+                temp->real_color = GRAY;
+                break;
+            }
+
+            currentColorIndex = nextColorIndex;
+            previous_t->next = temp;
+            previous_t = temp;
+        }
+    }
+}
+
+
+void CreateStack3(HexagonStackMember** p_first, int limit) {
+    srand(time(NULL) + 2);
+
+    HexagonStackMember* temp = NULL;
+    HexagonStackMember* previous_t = NULL;
+
+    int transitionMatrix3[NUM_OF_COLORS][NUM_OF_COLORS] = {
+        {90, 10, 0, 0, 0, 0, 0, 0}, // kırmızı
+        {0, 90, 10, 0, 0, 0, 0, 0}, // yeşil
+        {0, 0, 90, 10, 0, 0, 0, 0}, // mavi
+        {10, 0, 0, 90, 0, 0, 0, 0}, // sarı
+        {0, 0, 0, 0, 90, 10, 0, 0}, // turkuaz
+        {0, 0, 0, 0, 0, 90, 10, 0}, // mor (Yeni renk)
+        {0, 0, 0, 0, 0, 0, 90, 10}, // beyaz (Yeni renk)
+        {10, 0, 0, 0, 0, 0, 0, 90}  // gri (Yeni renk)
+    };
+
+    int currentColorIndex = rand() % NUM_OF_COLORS;
+
+    for (int i = 0; i < limit; i++) {
+
+        if (i == 0) {
+
+            *p_first = (HexagonStackMember*)malloc(sizeof(HexagonStackMember));
+            if (*p_first == NULL) exit(1);
+
+            (*p_first)->next = NULL;
+            (*p_first)->previous = NULL;
+
+            int randomValue = rand() % 100;
+            int sum = 0;
+            int nextColorIndex = 0;
+            for (int j = 0; j < NUM_OF_COLORS; j++) {
+                sum += transitionMatrix3[currentColorIndex][j];
+                if (randomValue < sum) {
+                    nextColorIndex = j;
+                    break;
+                }
+            }
+
+            switch (nextColorIndex) {
+            case 0:
+                (*p_first)->color = RedHexagon;
+                (*p_first)->real_color = RED;
+                break;
+            case 1:
+                (*p_first)->color = GreenHexagon;
+                (*p_first)->real_color = GREEN;
+                break;
+            case 2:
+                (*p_first)->color = BlueHexagon;
+                (*p_first)->real_color = BLUE;
+                break;
+            case 3:
+                (*p_first)->color = YellowHexagon;
+                (*p_first)->real_color = YELLOW;
+                break;
+            case 4:
+                (*p_first)->color = TurquoiseHexagon;
+                (*p_first)->real_color = SKYBLUE;
+                break;
+            case 5:
+                (*p_first)->color = PurpleHexagon;
+                (*p_first)->real_color = PURPLE;
+                break;
+            case 6:
+                (*p_first)->color = WhiteHexagon; // Yeni renk
+                (*p_first)->real_color = WHITE;
+                break;
+            case 7:
+                (*p_first)->color = GrayHexagon; // Yeni renk
+                (*p_first)->real_color = GRAY;
+                break;
+            default:
+                (*p_first)->color = Gray2Hexagon;
+                (*p_first)->real_color = GRAY;
+                break;
+            }
+
+            currentColorIndex = nextColorIndex;
+            previous_t = *p_first;
+
+        }
+
+        else {
+
+            temp = (HexagonStackMember*)malloc(sizeof(HexagonStackMember));
+            if (temp == NULL) exit(1);
+
+            temp->previous = previous_t;
+            temp->next = NULL;
+
+            int randomValue = rand() % 100;
+            int sum = 0;
+            int nextColorIndex = 0;
+            for (int j = 0; j < NUM_OF_COLORS; j++) {
+                sum += transitionMatrix3[currentColorIndex][j];
+                if (randomValue < sum) {
+                    nextColorIndex = j;
+                    break;
+                }
+            }
+
+            switch (nextColorIndex) {
+            case 0:
+                temp->color = RedHexagon;
+                temp->real_color = RED;
+                break;
+            case 1:
+                temp->color = GreenHexagon;
+                temp->real_color = GREEN;
+                break;
+            case 2:
+                temp->color = BlueHexagon;
+                temp->real_color = BLUE;
+                break;
+            case 3:
+                temp->color = YellowHexagon;
+                temp->real_color = YELLOW;
+                break;
+            case 4:
+                temp->color = TurquoiseHexagon;
+                temp->real_color = SKYBLUE;
+                break;
+            case 5:
+                temp->color = PurpleHexagon;
+                temp->real_color = PURPLE;
+                break;
+            case 6:
+                temp->color = WhiteHexagon;
+                temp->real_color = WHITE;
+                break;
+            case 7:
+                temp->color = GrayHexagon;
+                temp->real_color = GRAY;
+                break;
+            default:
+                temp->color = Gray2Hexagon;
+                temp->real_color = GRAY;
+                break;
+            }
+            currentColorIndex = nextColorIndex;
+            previous_t->next = temp;
+            previous_t = temp;
+        }
+    }
+}
+
+void DrawStack(HexagonStackMember** p_first, float pos_x, float pos_z, float stabilizer)
+{
+    HexagonStackMember* temp = *p_first;
+
+    int i = 0;
+
+    while (temp != NULL) {
+
+        DrawModelEx(temp->color, (Vector3) { pos_x, (i + 1) * 0.5f, pos_z }, (Vector3) { 0.0f, 1.0f, 0.0f }, stabilizer, (Vector3) { 0.05f, 0.05f, 0.05f }, WHITE);
+        i++;
+        temp = temp->next;
+    }
+
+}
+
+void DrawSelectedStack(HexagonStackMember** p_first, float pos_x, float pos_z, float stabilizer) {
+
+    HexagonStackMember* temp = *p_first;
+
+    int i = 0;
+
+    while (temp != NULL) {
+
+        DrawModelEx(temp->color, (Vector3) { pos_x, i * 0.5f + 0.5f, pos_z }, (Vector3) { 0.0f, 1.0f, 0.0f }, stabilizer, (Vector3) { 0.06f, 0.06f, 0.06f }, WHITE);
+        i++;
+        temp = temp->next;
+    }
+}
+
+void CopySlotStackToPermanantStack(HexagonStackMember* p_first, PermanantHexagonStackMember** p_perma_first) {
+
+    HexagonStackMember* temp = p_first; if (temp == NULL) { exit(1); }
+
+    int length = 0;
+
+    PermanantHexagonStackMember* temp2 = *p_perma_first;
+
+    while (temp) {
+
+        temp = temp->next;
+
+        length++;
+    }
+
+    PermanantHexagonStackMember* previous = NULL;
+
+    for (int i = 0; i < length; i++) {
+
+        if (i == 0) {
+
+            *p_perma_first = (PermanantHexagonStackMember*)malloc(sizeof(PermanantHexagonStackMember)); if (*p_perma_first == NULL) { exit(1); }
+
+            (*p_perma_first)->previous = NULL;
+            (*p_perma_first)->next = NULL;
+
+            previous = *p_perma_first;
+        }
+        else {
+
+            temp2 = (PermanantHexagonStackMember*)malloc(sizeof(PermanantHexagonStackMember)); if (temp2 == NULL) { exit(1); }
+
+            temp2->previous = previous;
+            previous->next = temp2;
+            temp2->next = NULL;
+
+            previous = temp2;
+        }
+
+    }
+
+    temp2 = *p_perma_first;
+
+    temp = p_first;
+
+    for (int i = 0; i < length; i++) {
+
+        temp2->location = (Vector3){ 0.0f, 0.5f * (i + 1),0.0f };
+        temp2->color = temp->color;
+        temp2->real_color = temp->real_color;
+        temp = temp->next;
+        temp2 = temp2->next;
+    }
+}
+
+void FreeServerList(PermanantHexagonStackMember** p_perma_first) {
+
+    PermanantHexagonStackMember* temp = *p_perma_first;
+
+    while (temp->next != NULL) {
+
+        temp = temp->next;
+    }
+
+    PermanantHexagonStackMember* temp2 = NULL;
+
+    while (temp != *p_perma_first) {
+
+        temp2 = temp;
+        temp = temp->previous;
+        free(temp2);
+        temp->next = NULL;
+    }
+}
+
+void LockInPositionForPermaStack(PermanantHexagonStackMember** p_perma_first) {
+
+    Vector3 certain_pos = (*p_perma_first)->location;
+    PermanantHexagonStackMember* temp = (*p_perma_first)->next;
+
+    while (temp != NULL) {
+
+        temp->location.x = certain_pos.x;
+        temp->location.z = certain_pos.z;
+        temp = temp->next;
+    }
+}
+
+void DrawPermaStack(PermanantHexagonStackMember** p_perma_first) {
+
+    PermanantHexagonStackMember* temp = *p_perma_first;
+
+    while (temp != NULL) {
+
+        DrawModel(temp->color, temp->location, 0.05f, WHITE);
+        temp = temp->next;
+    }
+}
+
+void DrawAllPermaStacksTable1(int TableNo) {
+
+    for (int i = 0; i < TableNo; i++) {
+
+        if (Table1Slots[i] != NULL) {
+            DrawPermaStack(&(Table1Slots[i]));
+        }
+    }
+}
+
+void DrawAllPermaStacksTable2(int TableNo) {
+
+    for (int i = 0; i < TableNo; i++) {
+
+        if (Table2Slots[i] != NULL) {
+            DrawPermaStack(&(Table2Slots[i]));
+        }
+    }
+
+}
+
+void DrawAllPermaStacksTable3(int TableNo) {
+
+    for (int i = 0; i < TableNo; i++) {
+
+        if (Table3Slots[i] != NULL) {
+            DrawPermaStack(&(Table3Slots[i]));
+        }
+    }
+
+}
+
+int RotateStack(int* selected_stack_index, int* slot_state_1, int* slot_state_2, int* slot_state_3) {
+
+    if (!up_selected) {
+
+        if (*slot_state_1 == 1 && *slot_state_2 == 1 && *slot_state_3 == 1) {
+
+            if (IsKeyPressed(KEY_LEFT)) {
+                (*selected_stack_index)--;
+
+                if (*selected_stack_index < 0)
+                    *selected_stack_index = 2;
+            }
+
+
+            else if (IsKeyPressed(KEY_RIGHT)) {
+                (*selected_stack_index)++;
+
+                if (*selected_stack_index > 2)
+                    *selected_stack_index = 0;
+            }
+        }
+        else if (*slot_state_1 == 1 && *slot_state_2 == 0 && *slot_state_3 == 1) {
+
+            if (IsKeyPressed(KEY_LEFT)) {
+
+                if (*selected_stack_index == 2) {
+
+                    *selected_stack_index = 0;
+                }
+                else if (*selected_stack_index == 0) {
+
+                    *selected_stack_index = 2;
+                }
+            }
+            else if (IsKeyPressed(KEY_RIGHT)) {
+
+                if (*selected_stack_index == 0) {
+
+                    *selected_stack_index = 2;
+                }
+                else if (*selected_stack_index == 2) {
+
+                    *selected_stack_index = 0;
+                }
+            }
+
+        }
+
+        else if (*slot_state_1 == 1 && *slot_state_2 == 1 && *slot_state_3 == 0) {
+
+            if (IsKeyPressed(KEY_LEFT)) {
+
+                if (*selected_stack_index == 1) {
+
+                    *selected_stack_index = 0;
+                }
+                else if (*selected_stack_index == 0) {
+
+                    *selected_stack_index = 1;
+                }
+            }
+            else if (IsKeyPressed(KEY_RIGHT)) {
+
+                if (*selected_stack_index == 0) {
+
+                    *selected_stack_index = 1;
+                }
+                else if (*selected_stack_index == 1) {
+
+                    *selected_stack_index = 0;
+                }
+            }
+
+        }
+
+        else if (*slot_state_1 == 0 && *slot_state_2 == 1 && *slot_state_3 == 1) {
+
+            if (IsKeyPressed(KEY_LEFT)) {
+
+                if (*selected_stack_index == 1) {
+
+                    *selected_stack_index = 2;
+                }
+                else if (*selected_stack_index == 2) {
+
+                    *selected_stack_index = 1;
+                }
+            }
+            else if (IsKeyPressed(KEY_RIGHT)) {
+
+                if (*selected_stack_index == 2) {
+
+                    *selected_stack_index = 1;
+                }
+                else if (*selected_stack_index == 1) {
+
+                    *selected_stack_index = 2;
+                }
+            }
+        }
+
+        else if (*slot_state_1 == 1 && *slot_state_2 == 0 && *slot_state_3 == 0) {
+
+            *selected_stack_index = 0;
+        }
+
+        else if (*slot_state_1 == 0 && *slot_state_2 == 1 && *slot_state_3 == 0) {
+
+            *selected_stack_index = 1;
+        }
+
+        else if (*slot_state_1 == 0 && *slot_state_2 == 0 && *slot_state_3 == 1) {
+
+            *selected_stack_index = 2;
+        }
+
+        else if (*slot_state_1 == 0 && *slot_state_2 == 0 && *slot_state_3 == 0) {
+
+            *selected_stack_index = 0;
+        }
+
+        return *selected_stack_index;
+    }
+
+    else {
+        return -1;
+    }
+}
+
+int RotateSlot(float distance, float diameter, Vector3* location, bool up_selected, int level, Vector3* Table1, Vector3* Table2, Vector3* Table3, float argument) {
+    Vector3* table;
+    int tableSize;
+
+    // Seviyeye göre tabloyu seç
+    if (level == 1) {
+        table = Table1;
+        tableSize = TABLE1_SIZE;
+    }
+    else if (level == 2) {
+        table = Table2;
+        tableSize = TABLE2_SIZE;
+    }
+    else if (level == 3) {
+        table = Table3;
+        tableSize = TABLE3_SIZE;
+    }
+    else {
+        // Belirli bir seviye yoksa işlem yapma
+        return -2;
+    }
+
+    float a = 0.75;
+    float b = 0.5;
+    float c = 0.5;
+    float d = 1; // 2b = d
+
+    int key_up;
+    int key_down;
+    int key_leftup;
+    int key_rightup;
+    int key_leftdown;
+    int key_rightdown;
+
+    if ((0 < argument) && (argument < (PI / 3))) {
+
+        key_up = KEY_Q;
+        key_leftup = KEY_A;
+        key_leftdown = KEY_S;
+        key_down = KEY_D;
+        key_rightdown = KEY_E;
+        key_rightup = KEY_W;
+
+    }
+
+    else if (((PI / 3) < argument) && (argument < (4 * PI / 6))) {
+
+
+        key_up = KEY_W;
+        key_leftup = KEY_Q;
+        key_leftdown = KEY_A;
+        key_down = KEY_S;
+        key_rightdown = KEY_D;
+        key_rightup = KEY_E;
+    }
+
+    else if (((4 * PI / 6) < argument) && (argument < PI)) {
+
+
+
+        key_up = KEY_E;
+        key_leftup = KEY_W;
+        key_leftdown = KEY_Q;
+        key_down = KEY_A;
+        key_rightdown = KEY_S;
+        key_rightup = KEY_D;
+    }
+
+    else if (((-PI) < argument) && (argument < (-4 * PI / 6))) {
+
+
+
+        key_up = KEY_D;
+        key_leftup = KEY_E;
+        key_leftdown = KEY_W;
+        key_down = KEY_Q;
+        key_rightdown = KEY_A;
+        key_rightup = KEY_S;
+    }
+
+    else if (((-4 * PI / 6) < argument) && (argument < (-PI / 3))) {
+
+
+
+        key_up = KEY_S;
+        key_leftup = KEY_D;
+        key_leftdown = KEY_E;
+        key_down = KEY_W;
+        key_rightdown = KEY_Q;
+        key_rightup = KEY_A;
+    }
+
+    else if (((-PI / 3) < argument) && (argument < 0)) {
+
+
+        key_up = KEY_A;
+        key_leftup = KEY_S;
+        key_leftdown = KEY_D;
+        key_down = KEY_E;
+        key_rightdown = KEY_W;
+        key_rightup = KEY_Q;
+    }
+
+    else {
+
+        key_up = KEY_W;
+        key_leftup = KEY_Q;
+        key_leftdown = KEY_A;
+        key_down = KEY_S;
+        key_rightdown = KEY_D;
+        key_rightup = KEY_E;
+
+    }
+
+    if (IsKeyPressed(key_leftdown)) {
+        float new_x = location->x + a * diameter;
+        float new_z = location->z - b * distance;
+        // Yeni konumun sınırlarını kontrol et
+        for (int i = 0; i < tableSize; i++) {
+
+            if (fabs(new_x - table[i].x) < 0.0001 && fabs(new_z - table[i].z) < 0.0001) {
+                // Yeni konum tablonun bir elemanı ile eşleşirse güncelle
+
+                location->x = new_x;
+                location->z = new_z;
+                return i;
+            }
+        }
+    }
+    else if (IsKeyPressed(key_leftup)) {
+        float new_x = location->x + a * diameter;
+        float new_z = location->z + b * distance;
+        // Yeni konumun sınırlarını kontrol et
+        for (int i = 0; i < tableSize; i++) {
+            if (fabs(new_x - table[i].x) < 0.0001 && fabs(new_z - table[i].z) < 0.0001) {
+                // Yeni konum tablonun bir elemanı ile eşleşirse güncelle
+                location->x = new_x;
+                location->z = new_z;
+                return i;
+            }
+        }
+    }
+    else if (IsKeyPressed(key_up)) {
+        float new_z = location->z + d * distance;
+        float new_x = location->x;
+        // Yeni konumun sınırlarını kontrol et
+        for (int i = 0; i < tableSize; i++) {
+            if (fabs(new_x - table[i].x) < 0.0001 && fabs(new_z - table[i].z) < 0.0001) {
+                // Yeni konum tablonun bir elemanı ile eşleşirse güncelle
+                location->x = new_x;
+                location->z = new_z;
+                return i;
+            }
+        }
+    }
+    else if (IsKeyPressed(key_rightup)) {
+        float new_x = location->x - a * diameter;
+        float new_z = location->z + b * distance;
+        // Yeni konumun sınırlarını kontrol et
+        for (int i = 0; i < tableSize; i++) {
+
+            if (fabs(new_x - table[i].x) < 0.0001 && fabs(new_z - table[i].z) < 0.0001) {
+                // Yeni konum tablonun bir elemanı ile eşleşirse güncelle                
+                location->x = new_x;
+                location->z = new_z;
+                return i;
+            }
+        }
+    }
+    else if (IsKeyPressed(key_rightdown)) {
+        float new_x = location->x - a * diameter;
+        float new_z = location->z - b * distance;
+        // Yeni konumun sınırlarını kontrol et
+        for (int i = 0; i < tableSize; i++) {
+            if (fabs(new_x - table[i].x) < 0.0001 && fabs(new_z - table[i].z) < 0.0001) {
+                // Yeni konum tablonun bir elemanı ile eşleşirse güncelle
+                location->x = new_x;
+                location->z = new_z;
+                return i;
+            }
+        }
+    }
+    else if (IsKeyPressed(key_down)) {
+        float new_z = location->z - d * distance;
+        float new_x = location->x;
+        // Yeni konumun sınırlarını kontrol et
+        for (int i = 0; i < tableSize; i++) {
+            if (fabs(new_x - table[i].x) < 0.0001 && fabs(new_z - table[i].z) < 0.0001) {
+                // Yeni konum tablonun bir elemanı ile eşleşirse güncelle
+                location->z = new_z;
+                location->x = new_x;
+                return i;
+            }
+        }
+    }
+
+    else {
+
+        float new_x = location->x;
+        float new_z = location->z;
+        // Yeni konumun sınırlarını kontrol et
+        for (int i = 0; i < tableSize; i++) {
+
+            if (fabs(new_x - table[i].x) < 0.0001 && fabs(new_z - table[i].z) < 0.0001) {
+
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+int GetRandomNumber5To15()
+{
+    int random = rand() % 11 + 5;
+
+    return random;
+}
+
+int IsTableFull(int level, PermanantHexagonStackMember** Table1, PermanantHexagonStackMember** Table2, PermanantHexagonStackMember** Table3)
+{
+    PermanantHexagonStackMember** CurrentTable;
+    int length;
+    if (level == 1) {
+
+        CurrentTable = Table1;
+        length = TABLE1_SIZE;
+    }
+    else if (level == 2) {
+
+        CurrentTable = Table2;
+        length = TABLE2_SIZE;
+    }
+    else if (level == 3) {
+
+        CurrentTable = Table3;
+        length = TABLE3_SIZE;
+    }
+    else
+        return -2;
+
+
+    for (int i = 0; i < length; i++) {
+
+        if (CurrentTable[i] == NULL) {
+
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+void TraverseTable1() {
+
+    for (int i = 0; i < TABLE1_SIZE; i++) {
+
+        for (int j = 0; j < TABLE1_SIZE; j++) {
+
+            if (Table1Adj[i][j]) {
+
+                if (CheckAdjacentStacksTopColor(Table1Slots[i], Table1Slots[j])) {
+
+                    MoveHexagonsFromOneStackToAnother(&Table1Slots[i], &Table1Slots[j]);
+                }
+            }
+        }
+    }
+}
+
+void TraverseTable2() {
+
+
+    for (int i = 0; i < TABLE2_SIZE; i++) {
+
+        for (int j = 0; j < TABLE2_SIZE; j++) {
+
+            if (Table2Adj[i][j]) {
+
+                if (CheckAdjacentStacksTopColor(Table2Slots[i], Table2Slots[j])) {
+
+                    MoveHexagonsFromOneStackToAnother(&Table2Slots[i], &Table2Slots[j]);
+                }
+            }
+        }
+    }
+}
+
+void TraverseTable3() {
+
+    for (int i = 0; i < TABLE3_SIZE; i++) {
+
+        for (int j = 0; j < TABLE3_SIZE; j++) {
+
+            if (Table3Adj[i][j]) {
+
+                if (CheckAdjacentStacksTopColor(Table3Slots[i], Table3Slots[j])) {
+
+                    MoveHexagonsFromOneStackToAnother(&Table3Slots[i], &Table3Slots[j]);
+                }
+            }
+        }
+    }
+}
+
+int CheckAdjacentStacksTopColor(PermanantHexagonStackMember* first1, PermanantHexagonStackMember* first2) {
+
+    if (first1 == NULL || first2 == NULL) {
+
+        return 0;
+    }
+
+    PermanantHexagonStackMember* top1 = NULL;
+    PermanantHexagonStackMember* top2 = NULL;
+
+    PermanantHexagonStackMember* temp = first1;
+
+    while (temp != NULL) {
+
+        top1 = temp;
+        temp = temp->next;
+    }
+
+    temp = first2;
+
+    while (temp != NULL) {
+
+        top2 = temp;
+        temp = temp->next;
+    }
+
+    if (top1->real_color.r == top2->real_color.r && top1->real_color.g == top2->real_color.g && top1->real_color.b == top2->real_color.b && top1->real_color.a == top2->real_color.a) {
+
+        return 1;
+    }
+    return 0;
+}
+
+void MoveHexagonsFromOneStackToAnother(PermanantHexagonStackMember** p_first1, PermanantHexagonStackMember** p_first2) {
+
+    if (!p_first1 || !p_first2 || !*p_first1 || !*p_first2) {
+
+        return;
+    }
+
+
+    PermanantHexagonStackMember* first1 = *p_first1;
+    PermanantHexagonStackMember* first2 = *p_first2;
+
+    PermanantHexagonStackMember* temp = first1;
+
+    PermanantHexagonStackMember* top1 = NULL;
+    PermanantHexagonStackMember* top2 = NULL;
+    int i = 0;
+    while (temp != NULL) {
+
+        top1 = temp;
+        temp = temp->next;
+    }
+
+    temp = first2;
+
+    while (temp != NULL) {
+
+        top2 = temp;
+        temp = temp->next;
+    }
+
+    int NoSameColorFromTop1 = 1;
+    int NoSameColorFromTop2 = 1;
+
+    temp = top1;
+
+    while (temp->previous != NULL && temp->real_color.r == temp->previous->real_color.r && temp->real_color.g == temp->previous->real_color.g && temp->real_color.b == temp->previous->real_color.b && temp->real_color.a == temp->previous->real_color.a) {
+
+        NoSameColorFromTop1++;
+        temp = temp->previous;
+
+    }
+
+    temp = top2;
+
+    while (temp->previous != NULL && temp->real_color.r == temp->previous->real_color.r && temp->real_color.g == temp->previous->real_color.g && temp->real_color.b == temp->previous->real_color.b && temp->real_color.a == temp->previous->real_color.a) {
+
+        NoSameColorFromTop2++;
+        temp = temp->previous;
+    }
+    /*printf("Height1 is %d, Height2 is %d.\n", NoSameColorFromTop1, NoSameColorFromTop2);
+    printf("\n\n\n first1: %p top1:%p top1->r:%d top1->g:%d top1->b:%d top->a:%d\n\n\n", first1, top1, top1->real_color.r, top1->real_color.g, top1->real_color.b, top1->real_color.a);
+    printf("\n\n\n first2: %p top2:%p \n\n\n", first2, top2);
+    printf("--------------------------------------------------------\n");*/
+
+    if (NoSameColorFromTop1 <= NoSameColorFromTop2) {
+
+        for (int i = 0; i < NoSameColorFromTop1; i++) {
+
+            top2->next = top1;
+            top1 = top1->previous;
+            top2->next->previous = top2;
+            top2 = top2->next;
+            if (top1 != NULL)
+                top1->next = NULL;
+            else {
+                printf("Nullifed");
+                *p_first1 = NULL;
+            }
+            top2->location.x = top2->previous->location.x;
+            top2->location.z = top2->previous->location.z;
+            top2->location.y = top2->previous->location.y + 0.5f;
+
+            /*printf("i = %d\n", i);
+            printf("\n\n\n first1: %p top1:%p top1->r:%d top1->g:%d top1->b:%d top->a:%d\n\n\n", first1, top1, top1->real_color.r, top1->real_color.g, top1->real_color.b, top1->real_color.a);
+            printf("\n\n\n first2: %p top2:%p \n\n\n", first2, top2);
+            printf("--------------------------------------------------------\n");*/
+        }
+    }
+
+    else {
+
+        for (int i = 0; i < NoSameColorFromTop2; i++) {
+
+            top1->next = top2;
+            top2 = top2->previous;
+            top1->next->previous = top1;
+            top1 = top1->next;
+            if (top2 != NULL)
+                top2->next = NULL;
+            else {
+                printf("Nullifed");
+                *p_first2 = NULL;
+            }
+            top1->location.x = top1->previous->location.x;
+            top1->location.z = top1->previous->location.z;
+            top1->location.y = top1->previous->location.y + 0.5f;
+
+            /*printf("i = %d\n", i);
+            printf("\n\n\n first1: %p top1:%p \n\n\n", first1, top1);
+            printf("\n\n\n first2: %p top2:%p \n\n\n", first2, top2);
+
+            printf("--------------------------------------------------------\n");*/
+        }
+    }
+}
+
+void CheckHexagonsToPop1(int* score) {
+
+    for (int i = 0; i < TABLE1_SIZE; i++) {
+
+        if (Table1Slots[i] != NULL) {
+
+            PermanantHexagonStackMember* temp = Table1Slots[i];
+            PermanantHexagonStackMember* tracker = Table1Slots[i];
+
+            int k = 1;
+
+            while (temp->next != NULL) {
+
+                if (temp->real_color.r == temp->next->real_color.r && temp->real_color.g == temp->next->real_color.g && temp->real_color.b == temp->next->real_color.b && temp->real_color.a == temp->next->real_color.a) {
+
+                    k++;
+                }
+                else {
+
+                    k = 1;
+                    tracker = temp->next;
+                }
+
+                temp = temp->next;
+            }
+
+            if (k > 9) {
+
+                (*score) += k;
+
+                if (tracker->previous != NULL) {
+
+                    tracker->previous->next = NULL;
+                }
+                else {
+
+                    Table1Slots[i] = NULL;
+                }
+
+                PermanantHexagonStackMember* temp2 = tracker;
+
+                while (temp2 != NULL) {
+
+                    temp2 = temp2->next;
+                    free(tracker);
+                    tracker = temp2;
+                }
+            }
+        }
+    }
+}
+
+void CheckHexagonsToPop2(int* score) {
+
+    for (int i = 0; i < TABLE2_SIZE; i++) {
+
+        if (Table2Slots[i] != NULL) {
+
+            PermanantHexagonStackMember* temp = Table2Slots[i];
+            PermanantHexagonStackMember* tracker = Table2Slots[i];
+
+            int k = 1;
+
+            while (temp->next != NULL) {
+
+                if (temp->real_color.r == temp->next->real_color.r && temp->real_color.g == temp->next->real_color.g && temp->real_color.b == temp->next->real_color.b && temp->real_color.a == temp->next->real_color.a) {
+
+                    k++;
+                }
+                else {
+
+                    k = 1;
+                    tracker = temp->next;
+                }
+
+                temp = temp->next;
+            }
+
+            if (k > 9) {
+
+                (*score) += k;
+
+                if (tracker->previous != NULL) {
+
+                    tracker->previous->next = NULL;
+                }
+                else {
+
+                    Table2Slots[i] = NULL;
+                }
+
+                PermanantHexagonStackMember* temp2 = tracker;
+
+                while (temp2 != NULL) {
+
+                    temp2 = temp2->next;
+                    free(tracker);
+                    tracker = temp2;
+                }
+            }
+        }
+    }
+}
+
+void CheckHexagonsToPop3(int* score) {
+
+    for (int i = 0; i < TABLE3_SIZE; i++) {
+
+        if (Table3Slots[i] != NULL) {
+
+            PermanantHexagonStackMember* temp = Table3Slots[i];
+            PermanantHexagonStackMember* tracker = Table3Slots[i];
+
+            int k = 1;
+
+            while (temp->next != NULL) {
+
+                if (temp->real_color.r == temp->next->real_color.r && temp->real_color.g == temp->next->real_color.g && temp->real_color.b == temp->next->real_color.b && temp->real_color.a == temp->next->real_color.a) {
+
+                    k++;
+                }
+                else {
+
+                    k = 1;
+                    tracker = temp->next;
+                }
+
+                temp = temp->next;
+            }
+
+            if (k > 1) {
+
+                (*score) += k;
+
+                if (tracker->previous != NULL) {
+
+                    tracker->previous->next = NULL;
+                }
+                else {
+
+                    Table3Slots[i] = NULL;
+                }
+
+                PermanantHexagonStackMember* temp2 = tracker;
+
+                while (temp2 != NULL) {
+
+                    temp2 = temp2->next;
+                    free(tracker);
+                    tracker = temp2;
+                }
+            }
+        }
+    }
+}
+
+void DrawTable(int level, float distance, float diameter) {
+
+    if (level == 1) {
+        DrawModel(Table1, (Vector3) { 0.0f, 0.0f, 0.0f }, 0.05f, WHITE);//table
+    }
+
+    else if (level == 2) {
+        DrawModel(Table2, (Vector3) { 0.0f, 0.0f, 0.0f }, 0.05f, WHITE);//table
+        /*DrawModel(PurpleHexagon, (Vector3) { 0, .5f, (-1 * distance) }, 0.05f, WHITE);
+        DrawModel(PurpleHexagon, (Vector3) { 0, 1.0f, (-1 * distance) }, 0.05f, WHITE);
+        DrawModel(PurpleHexagon, (Vector3) { 0, 1.5f, (-1 * distance) }, 0.05f, WHITE);
+        DrawModel(YellowHexagon, (Vector3) { 0, 2.0f, (-1 * distance) }, 0.05f, WHITE);
+        DrawModel(YellowHexagon, (Vector3) { 0, 2.5f, (-1 * distance) }, 0.05f, WHITE);
+        //
+        DrawModel(GreenHexagon, (Vector3) { (0.75 * diameter), .5f, (-0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(RedHexagon, (Vector3) { (0.75 * diameter), 1.0f, (-0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(RedHexagon, (Vector3) { (0.75 * diameter), 1.5f, (-0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(RedHexagon, (Vector3) { (0.75 * diameter), 2.0f, (-0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(RedHexagon, (Vector3) { (0.75 * diameter), 2.5f, (-0.5 * distance) }, 0.05f, WHITE);
+        //
+        DrawModel(BlueHexagon, (Vector3) { (-2.25 * diameter), .5f, (-0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(BlueHexagon, (Vector3) { (-2.25 * diameter), 1.0f, (-0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(GreenHexagon, (Vector3) { (-2.25 * diameter), 1.5f, (-0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(GreenHexagon, (Vector3) { (-2.25 * diameter), 2.0f, (-0.5 * distance) }, 0.05f, WHITE);*/
+    }
+    else if (level == 3) {
+        DrawModel(Table3, (Vector3) { 0.0f, 0.0f, 0.0f }, 0.05f, WHITE);//table
+        /*DrawModel(GreenHexagon, (Vector3) { (0.75 * diameter), .5f, (-1.5 * distance) }, 0.05f, WHITE);
+        DrawModel(GreenHexagon, (Vector3) { (0.75 * diameter), 1.0f, (-1.5 * distance) }, 0.05f, WHITE);
+        DrawModel(PurpleHexagon, (Vector3) { (0.75 * diameter), 1.5f, (-1.5 * distance) }, 0.05f, WHITE);
+        DrawModel(PurpleHexagon, (Vector3) { (0.75 * diameter), 2.0f, (-1.5 * distance) }, 0.05f, WHITE);
+        DrawModel(PurpleHexagon, (Vector3) { (0.75 * diameter), 2.5f, (-1.5 * distance) }, 0.05f, WHITE);
+        //
+        DrawModel(PurpleHexagon, (Vector3) { (-0.75 * diameter), .5f, (0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(PurpleHexagon, (Vector3) { (-0.75 * diameter), 1.0f, (0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(PurpleHexagon, (Vector3) { (-0.75 * diameter), 1.5f, (0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(RedHexagon, (Vector3) { (-0.75 * diameter), 2.0f, (0.5 * distance) }, 0.05f, WHITE);
+        DrawModel(RedHexagon, (Vector3) { (-0.75 * diameter), 2.5f, (0.5 * distance) }, 0.05f, WHITE);
+        //
+        DrawModel(BlueHexagon, (Vector3) { (-1.5 * diameter), .5f, (-1 * distance) }, 0.05f, WHITE);
+        DrawModel(YellowHexagon, (Vector3) { (-1.5 * diameter), 1.0f, (-1 * distance) }, 0.05f, WHITE);
+        DrawModel(YellowHexagon, (Vector3) { (-1.5 * diameter), 1.5f, (-1 * distance) }, 0.05f, WHITE);
+        DrawModel(YellowHexagon, (Vector3) { (-1.5 * diameter), 2.0f, (-1 * distance) }, 0.05f, WHITE);
+        DrawModel(YellowHexagon, (Vector3) { (-1.5 * diameter), 2.5f, (-1 * distance) }, 0.05f, WHITE);*/
+    }
+
+}
+
+void ScoreLevel(PermanantHexagonStackMember** p_first1, PermanantHexagonStackMember** p_first2, PermanantHexagonStackMember** p_first3, int* level, int is_table_full, int* game_running, int* slot_state_1, int* slot_state_2, int* slot_state_3, int* score) {
+
+    if (is_table_full == 0) {
+
+        if (*(score) >= level_score1 && *(level) == 1) {
+
+            // Table1Slots dizisini sıfırla
+            for (int i = 0; i < TABLE1_SIZE; i++) {
+                if (Table1Slots[i] != NULL) {
+                    free(Table1Slots[i]);
+                    Table1Slots[i] = NULL;
+                }
+            }
+            *(level) = 2;
+            *(score) = 0;
+
+            up_selected = false;
+
+            free(*p_first1); free(*p_first2); free(*p_first3);
+            CreateStack1(p_first1, GetRandomNumber5To15());
+            CreateStack2(p_first2, GetRandomNumber5To15());
+            CreateStack3(p_first3, GetRandomNumber5To15());
+            *slot_state_1 = 1; *slot_state_2 = 1; *slot_state_3 = 1;
+
+            WaitTime(3);
+
+        }
+        else if (*(score) >= level_score2 && *(level) == 2) {
+
+            // Table2Slots dizisini sıfırla
+
+            for (int i = 0; i < TABLE2_SIZE; i++) {
+                if (Table2Slots[i] != NULL) {
+                    free(Table2Slots[i]);
+                    Table2Slots[i] = NULL;
+                }
+            }
+            *(level) = 3;
+            *(score) = 0;
+
+            up_selected = false;
+
+            free(*p_first1); free(*p_first2); free(*p_first3);
+            CreateStack1(p_first1, GetRandomNumber5To15());
+            CreateStack2(p_first2, GetRandomNumber5To15());
+            CreateStack3(p_first3, GetRandomNumber5To15());
+            *slot_state_1 = 1; *slot_state_2 = 1; *slot_state_3 = 1;
+
+            WaitTime(3);
+        }
+
+        else if (*(score) >= level_score3 && *(level) == 3) {
+
+            DrawScaledCenteredTextEx(EuclidFamily(0), "Congratulations You Won!", (Vector2) { 0.5, 0.5 }, 100, 0, DARKPURPLE);
+            ClearBackground(BLANK);
+            *game_running = 0;
+        }
+    }
+    if (is_table_full == 1) {//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////mmmmmmmmmmmmmmmmm
+
+        DrawScaledCenteredTextEx(EuclidFamily(0), "Sorry You Lost", (Vector2) { 0.5, 0.5 }, 100, 0, DARKPURPLE);
+
+        *game_running = 0;
+        ClearBackground(BLANK);
+    }
+}
